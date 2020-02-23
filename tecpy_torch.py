@@ -145,3 +145,70 @@ print(len(train_outputs))
 print(len(categorical_test_data))
 print(len(numerical_test_data))
 print(len(test_outputs))
+
+
+### create a model for prediction######
+
+# We have divided the data into training and test sets, now is the time to define our model for training. To do so, we can define a class named Model, which will be used to train the model. Look at the following script:
+
+
+class Model(nn.Module):
+
+    def __init__(self, embedding_size, num_numerical_cols, output_size, layers, p=0.4):
+        super().__init__()
+        self.all_embeddings = nn.ModuleList([nn.Embedding(ni, nf) for ni, nf in embedding_size])
+        self.embedding_dropout = nn.Dropout(p)
+        self.batch_norm_num = nn.BatchNorm1d(num_numerical_cols)
+
+        all_layers = []
+        num_categorical_cols = sum((nf for ni, nf in embedding_size))
+        input_size = num_categorical_cols + num_numerical_cols
+
+        for i in layers:
+            all_layers.append(nn.Linear(input_size, i))
+            all_layers.append(nn.ReLU(inplace=True))
+            all_layers.append(nn.BatchNorm1d(i))
+            all_layers.append(nn.Dropout(p))
+            input_size = i
+
+        all_layers.append(nn.Linear(layers[-1], output_size))
+
+        self.layers = nn.Sequential(*all_layers)
+
+    def forward(self, x_categorical, x_numerical):
+        embeddings = []
+        for i, e in enumerate(self.all_embeddings):
+            embeddings.append(e(x_categorical[:, i]))
+        x = torch.cat(embeddings, 1)
+        x = self.embedding_dropout(x)
+
+        x_numerical = self.batch_norm_num(x_numerical)
+        x = torch.cat([x, x_numerical], 1)
+        x = self.layers(x)
+        return x
+
+
+'''
+If you have never worked with PyTorch before, the above code may look daunting, however I will try to break it down into for you.
+
+In the first line, we declare a Model class that inherits from the Module class from PyTorch's nn module. In the constructor of the class (the __init__() method) the following parameters are passed:
+
+embedding_size: Contains the embedding size for the categorical columns
+num_numerical_cols: Stores the total number of numerical columns
+output_size: The size of the output layer or the number of possible outputs.
+layers: List which contains number of neurons for all the layers.
+p: Dropout with the default value of 0.5
+Inside the constructor, a few variables are initialized. Firstly, the all_embeddings variable contains a list of ModuleList objects for all the categorical columns. The embedding_dropout stores the dropout value for all the layers. Finally, the batch_norm_num stores a list of BatchNorm1d objects for all the numerical columns.
+
+Next, to find the size of the input layer, the number of categorical and numerical columns are added together and stored in the input_size variable. After that, a for loop iterates and the corresponding layers are added into the all_layers list. The layers added are:
+
+Linear: Used to calculate the dot product between the inputs and weight matrixes
+ReLu: Which is applied as an activation function
+BatchNorm1d: Used to apply batch normalization to the numerical columns
+Dropout: Used to avoid overfitting
+After the for loop, the output layer is appended to the list of layers. Since we want all of the layers in the neural networks to execute sequentially, the list of layers is passed to the nn.Sequential class.
+
+Next, in the forward method, both the categorical and numerical columns are passed as inputs. The embedding of the categorical columns takes place in the following lines.
+
+
+'''
